@@ -1,0 +1,30 @@
+
+# Dépendances Node.js
+frontend/node_modules/
+node_modules/
+
+# Fichiers de build
+frontend/dist/
+frontend/build/
+
+# Fichiers de log
+*.log
+npm-debug.log*
+
+# Fichiers d'environnement
+.env
+.env.local
+.env.*.local
+
+# Fichiers système
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Docker
+.dockerignore
