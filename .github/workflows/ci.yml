@@ -40,10 +40,7 @@ jobs:
             echo "phpunit not found, skipping tests"
           fi
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        
+    
       - name: test docker
         run: |
           cp .env.example .env
