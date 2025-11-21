@@ -39,6 +39,7 @@ jobs:
           else
             echo "phpunit not found, skipping tests"
           fi
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -74,3 +75,4 @@ jobs:
             echo "Frontend is responding correctly with HTTP status code: $RESPONSE_CODE"
           fi
          
+
