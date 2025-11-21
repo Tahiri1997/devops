@@ -22,7 +22,7 @@ jobs:
 
       - name: PHP Lint
         run: |
-          find backend -name '*.php' -exec php -l {} \;
+          set -e && find backend -name '*.php' -print0 | while IFS= read -r -d '' file; do php -l "$file" || exit 1; done
 
       - name: Install Composer dependencies
         run: |
@@ -39,3 +39,4 @@ jobs:
           else
             echo "phpunit not found, skipping tests"
           fi
+
