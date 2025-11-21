@@ -39,3 +39,38 @@ jobs:
           else
             echo "phpunit not found, skipping tests"
           fi
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: test docker
+        run: |
+          cp .env.example .env
+          docker-compose up --build -d
+          sleep 10
+          if [ $(docker inspect -f '{{.State.Health.Status}}' contacts_db) != "healthy" ]; then
+            echo "Database container is not healthy"
+            docker-compose logs db
+            exit 1
+          fi
+          docker ps | grep -q 'projet-frontend' && echo "ok" ||echo "Docker container is not running" && exit 1
+          docker ps | grep -q 'projet-backend' && echo "ok" || echo "Docker container is not running" && exit 1
+      - name: check curl api
+        run: |
+          RESPONSE_CODE=$(curl -o /dev/null -s -w "%{http_code}\n" http://localhost:8080/api/contacts.php)
+          if [ "$RESPONSE_CODE" -ne 200 ]; then
+            echo "API is not responding as expected, HTTP status code: $RESPONSE_CODE"
+            exit 1
+          else
+            echo "API is responding correctly with HTTP status code: $RESPONSE_CODE"
+          fi
+      - name: check curl frontend
+        run: |
+          RESPONSE_CODE=$(curl -o /dev/null -s -w "%{http_code}\n" http://localhost:3000)
+          if [ "$RESPONSE_CODE" -ne 200 ]; then
+            echo "Frontend is not responding as expected, HTTP status code: $RESPONSE_CODE"
+            exit 1
+          else
+            echo "Frontend is responding correctly with HTTP status code: $RESPONSE_CODE"
+          fi
+         
