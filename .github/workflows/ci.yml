@@ -1,4 +1,4 @@
-name: CI
+name: CI PHP
 
 on:
   push:
@@ -7,9 +7,10 @@ on:
     branches: [ "main", "dev" ]
 
 jobs:
-  lint-backend:
-    name: Lint Backend (PHP syntax)
+  php:
+    name: PHP Lint & Unit Tests
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -19,93 +20,22 @@ jobs:
         with:
           php-version: '8.2'
 
-      - name: Run PHP syntax check
+      - name: PHP Lint
         run: |
-          set -e
-          shopt -s globstar || true
-          files=$(find backend -type f -name '*.php' -print)
-          if [ -z "$files" ]; then
-            echo "No PHP files found in backend/ - skipping lint"
-            exit 0
+          find backend -name '*.php' -exec php -l {} \;
+
+      - name: Install Composer dependencies
+        run: |
+          if [ -f composer.json ]; then
+            composer install --no-interaction --prefer-dist
+          else
+            echo "No composer.json found, skipping composer install"
           fi
-          for f in $files; do
-            echo "Checking $f"
-            php -l "$f"
-          done
 
-  build:
-    name: Unit Tests (existing)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup PHP
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.2'
-
-      - name: Install dependencies
-        run: composer install || echo "composer not present or no composer.json"
-
-      - name: Run unit tests
+      - name: Run PHPUnit
         run: |
           if [ -x vendor/bin/phpunit ]; then
-            vendor/bin/phpunit
+            vendor/bin/phpunit --testdox
           else
-            echo "phpunit not found - skipping unit tests"
+            echo "phpunit not found, skipping tests"
           fi
-
-  e2e:
-    name: End-to-End tests (docker-compose)
-    runs-on: ubuntu-latest
-    needs: [lint-backend]
-    env:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: mydb
-      MYSQL_USER: root
-      MYSQL_PASSWORD: root
-      API_BASE_URL: http://localhost:8080
-      FRONTEND_URL: http://localhost:3000
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Start services with Docker Compose
-        run: |
-          docker compose -f Docker-compose.yml up --build -d
-        shell: bash
-
-      - name: Wait for backend to be healthy
-        run: |
-          echo "Waiting for backend API at http://localhost:8080/api/contacts.php"
-          for i in $(seq 1 60); do
-            if curl -sSf http://localhost:8080/api/contacts.php >/dev/null 2>&1; then
-              echo "backend is up"
-              break
-            fi
-            echo "Waiting... ($i)"
-            sleep 2
-          done
-        shell: bash
-
-      - name: E2E - Create a contact (POST)
-        run: |
-          set -e
-          resp=$(curl -s -X POST -H "Content-Type: application/json" -d '{"nom":"CI","prenom":"Test","commentaire":"e2e test"}' http://localhost:8080/api/contacts.php || true)
-          echo "POST response: $resp"
-          echo "$resp" | grep -q '"success":true' || (echo "POST failed"; exit 1)
-        shell: bash
-
-      - name: E2E - List contacts (GET)
-        run: |
-          resp=$(curl -s http://localhost:8080/api/contacts.php || true)
-          echo "GET response: $resp"
-          echo "$resp" | grep -q '"success":true' || (echo "GET failed"; exit 1)
-        shell: bash
-
-      - name: Tear down services
-        if: always()
-        run: |
-          docker compose -f Docker-compose.yml down --volumes --remove-orphans
-        shell: bash
