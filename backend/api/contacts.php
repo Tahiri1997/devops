@@ -113,7 +113,7 @@ function createContact() {
                 'id' => $contactId,
                 'nom' => $nom,
                 'prenom' => $prenom,
-                'email' => $email
+                'email' => $email,
                 'commentaire' => $commentaire
             ]
         ], 201);
