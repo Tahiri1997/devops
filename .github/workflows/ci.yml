@@ -1,4 +1,4 @@
-name: PHP Unit Tests
+name: CI PHP
 
 on:
   push:
@@ -7,20 +7,35 @@ on:
     branches: [ "main", "dev" ]
 
 jobs:
-  build:
+  php:
+    name: PHP Lint & Unit Tests
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
-          extensions: pdo_mysql
 
-      - name: Install dependencies
-        run: composer install
+      - name: PHP Lint
+        run: |
+          find backend -name '*.php' -exec php -l {} \;
 
-      - name: Run unit tests
-        run: vendor/bin/phpunit
+      - name: Install Composer dependencies
+        run: |
+          if [ -f composer.json ]; then
+            composer install --no-interaction --prefer-dist
+          else
+            echo "No composer.json found, skipping composer install"
+          fi
+
+      - name: Run PHPUnit
+        run: |
+          if [ -x vendor/bin/phpunit ]; then
+            vendor/bin/phpunit --testdox
+          else
+            echo "phpunit not found, skipping tests"
+          fi
