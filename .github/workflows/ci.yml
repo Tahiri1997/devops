@@ -39,3 +39,4 @@ jobs:
           else
             echo "phpunit not found, skipping tests"
           fi
+
