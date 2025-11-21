@@ -22,7 +22,7 @@ jobs:
 
       - name: PHP Lint
         run: |
-          find backend -name '*.php' -exec php -l {} \;
+          find backend -name '*.php' -exec php -l {} \; || exit 1
 
       - name: Install Composer dependencies
         run: |
