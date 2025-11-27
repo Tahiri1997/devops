@@ -22,40 +22,74 @@ jobs:
 
       - name: PHP Lint
         run: |
-          set -e && find backend -name '*.php' -print0 | while IFS= read -r -d '' file; do php -l "$file" || exit 1; done
+          set -e
+          find backend -name '*.php' -print0 | while IFS= read -r -d '' file; do
+            php -l "$file" || exit 1
+          done
 
       # ---- DOCKER ----
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # ---- TEST DOCKER CONTAINERS ----
-      - name: test docker
+      - name: Verify docker-compose file exists
         run: |
-          cp .env.example .env
+          if [ -f "docker-compose.yml" ]; then
+            echo "✓ docker-compose.yml found"
+          elif [ -f "compose.yml" ]; then
+            echo "✓ compose.yml found"
+          else
+            echo "❌ No compose file found"
+            ls -la
+            exit 1
+          fi
+
+      # ---- TEST DOCKER CONTAINERS ----
+      - name: Setup environment
+        run: |
+          if [ -f ".env.example" ]; then
+            cp .env.example .env
+          else
+            echo "Warning: .env.example not found, creating minimal .env"
+            touch .env
+          fi
+
+      - name: Start Docker containers
+        run: |
           docker compose up --build -d
           sleep 10
 
+      - name: Check database health
+        run: |
           if [ $(docker inspect -f '{{.State.Health.Status}}' contacts_db) != "healthy" ]; then
             echo "Database container is not healthy"
             docker compose logs db
             exit 1
           fi
 
+      - name: Check containers are running
+        run: |
+          docker ps
           docker ps | grep -q 'projet-frontend' || exit 1
           docker ps | grep -q 'projet-backend' || exit 1
 
-      - name: check curl api
+      - name: Check API endpoint
         run: |
           RESPONSE_CODE=$(curl -o /dev/null -s -w "%{http_code}\n" http://localhost:8080/api/contacts.php)
           if [ "$RESPONSE_CODE" -ne 200 ]; then
             echo "API error: $RESPONSE_CODE"
+            docker compose logs backend
             exit 1
           fi
 
-      - name: check curl frontend
+      - name: Check frontend endpoint
         run: |
           RESPONSE_CODE=$(curl -o /dev/null -s -w "%{http_code}\n" http://localhost:3000)
           if [ "$RESPONSE_CODE" -ne 200 ]; then
             echo "Frontend error: $RESPONSE_CODE"
+            docker compose logs frontend
             exit 1
           fi
+
+      - name: Cleanup
+        if: always()
+        run: docker compose down -v
