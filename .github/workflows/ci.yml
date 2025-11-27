@@ -75,8 +75,8 @@ jobs:
       - name: Check containers are running
         run: |
           docker ps
-          docker ps | grep -q 'projet-frontend' || exit 1
-          docker ps | grep -q 'projet-backend' || exit 1
+          docker ps | grep -q 'contacts_frontend' || exit 1
+          docker ps | grep -q 'contacts_backend' || exit 1
 
       - name: Check API endpoint
         run: |
