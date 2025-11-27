@@ -22,168 +22,41 @@ jobs:
 
       - name: PHP Lint
         run: |
-          set -e
-          find backend -name '*.php' -print0 | while IFS= read -r -d '' file; do 
-            php -l "$file" || exit 1
-          done
+          set -e && find backend -name '*.php' -print0 | while IFS= read -r -d '' file; do php -l "$file" || exit 1; done
 
+      
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
-      
-      - name: Install Docker Compose
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y docker-compose-plugin
-          docker compose version
-
-      # Vérifier que le fichier docker-compose.yml existe
-      - name: Check docker-compose file
-        run: |
-          if [ -f "docker-compose.yml" ]; then
-            echo "✅ docker-compose.yml found"
-            cat docker-compose.yml
-          elif [ -f "Docker-compose.yml" ]; then
-            echo "✅ Docker-compose.yml found (renaming to docker-compose.yml)"
-            mv Docker-compose.yml docker-compose.yml
-          else
-            echo "❌ No docker-compose.yml file found!"
-            ls -la
-            exit 1
-          fi
     
-      - name: Create .env file
+      - name: test docker
         run: |
-          if [ -f ".env.example" ]; then
-            cp .env.example .env
-            echo "✅ .env file created"
+          cp .env.example .env
+          docker-compose up --build -d
+          sleep 10
+          if [ $(docker inspect -f '{{.State.Health.Status}}' contacts_db) != "healthy" ]; then
+            echo "Database container is not healthy"
+            docker-compose logs db
+            exit 1
+          fi
+          docker ps | grep -q 'projet-frontend' && echo "ok" ||echo "Docker container is not running" && exit 1
+          docker ps | grep -q 'projet-backend' && echo "ok" || echo "Docker container is not running" && exit 1
+      - name: check curl api
+        run: |
+          RESPONSE_CODE=$(curl -o /dev/null -s -w "%{http_code}\n" http://localhost:8080/api/contacts.php)
+          if [ "$RESPONSE_CODE" -ne 200 ]; then
+            echo "API is not responding as expected, HTTP status code: $RESPONSE_CODE"
+            exit 1
           else
-            echo "❌ .env.example not found!"
-            ls -la
-            exit 1
+            echo "API is responding correctly with HTTP status code: $RESPONSE_CODE"
           fi
-
-      - name: Start Docker containers
+      - name: check curl frontend
         run: |
-          docker compose up --build -d
-          echo "Waiting for containers to be ready..."
-          sleep 15
-
-      - name: Check Docker containers status
-        run: docker compose ps
-
-      - name: Wait for database to be healthy
-        run: |
-          echo "Checking database health..."
-          COUNTER=0
-          MAX_TRIES=30
-          
-          # Vérifier si le conteneur existe
-          if ! docker ps -a --format '{{.Names}}' | grep -q 'contacts_db'; then
-            echo "❌ Database container 'contacts_db' not found"
-            echo "Available containers:"
-            docker ps -a --format '{{.Names}}'
+          RESPONSE_CODE=$(curl -o /dev/null -s -w "%{http_code}\n" http://localhost:3000)
+          if [ "$RESPONSE_CODE" -ne 200 ]; then
+            echo "Frontend is not responding as expected, HTTP status code: $RESPONSE_CODE"
             exit 1
-          fi
-          
-          # Attendre que la BDD soit healthy
-          until [ "$(docker inspect -f '{{.State.Health.Status}}' contacts_db 2>/dev/null)" == "healthy" ] || [ $COUNTER -eq $MAX_TRIES ]; do
-            echo "Waiting for database... ($COUNTER/$MAX_TRIES)"
-            sleep 2
-            COUNTER=$((COUNTER+1))
-          done
-          
-          if [ $COUNTER -eq $MAX_TRIES ]; then
-            echo "❌ Database container is not healthy after ${MAX_TRIES} attempts"
-            docker compose logs contacts_db
-            exit 1
-          fi
-          
-          echo "✅ Database is healthy"
-
-      - name: Check frontend container
-        run: |
-          if docker ps --format '{{.Names}}' | grep -q 'contacts_frontend'; then
-            echo "✅ Frontend container is running"
           else
-            echo "❌ Frontend container is not running"
-            echo "Available containers:"
-            docker ps --format '{{.Names}}'
-            docker compose logs contacts_frontend
-            exit 1
+            echo "Frontend is responding correctly with HTTP status code: $RESPONSE_CODE"
           fi
+         
 
-      - name: Check backend container
-        run: |
-          if docker ps --format '{{.Names}}' | grep -q 'contacts_backend'; then
-            echo "✅ Backend container is running"
-          else
-            echo "❌ Backend container is not running"
-            echo "Available containers:"
-            docker ps --format '{{.Names}}'
-            docker compose logs contacts_backend
-            exit 1
-          fi
-
-      - name: Test API endpoint
-        run: |
-          echo "Testing API endpoint..."
-          COUNTER=0
-          MAX_TRIES=10
-          
-          until [ $COUNTER -eq $MAX_TRIES ]; do
-            RESPONSE_CODE=$(curl -o /dev/null -s -w "%{http_code}" http://localhost:8080/api/contacts.php 2>/dev/null || echo "000")
-            
-            if [ "$RESPONSE_CODE" = "200" ]; then
-              echo "✅ API is responding correctly (HTTP $RESPONSE_CODE)"
-              exit 0
-            fi
-            
-            echo "API not ready yet (HTTP $RESPONSE_CODE), retrying... ($COUNTER/$MAX_TRIES)"
-            sleep 3
-            COUNTER=$((COUNTER+1))
-          done
-          
-          echo "❌ API is not responding as expected after ${MAX_TRIES} attempts"
-          docker compose logs contacts_backend
-          exit 1
-
-      - name: Test frontend endpoint
-        run: |
-          echo "Testing frontend endpoint..."
-          COUNTER=0
-          MAX_TRIES=10
-          
-          until [ $COUNTER -eq $MAX_TRIES ]; do
-            RESPONSE_CODE=$(curl -o /dev/null -s -w "%{http_code}" http://localhost:3000 2>/dev/null || echo "000")
-            
-            if [ "$RESPONSE_CODE" = "200" ]; then
-              echo "✅ Frontend is responding correctly (HTTP $RESPONSE_CODE)"
-              exit 0
-            fi
-            
-            echo "Frontend not ready yet (HTTP $RESPONSE_CODE), retrying... ($COUNTER/$MAX_TRIES)"
-            sleep 3
-            COUNTER=$((COUNTER+1))
-          done
-          
-          echo "❌ Frontend is not responding as expected after ${MAX_TRIES} attempts"
-          docker compose logs contacts_frontend
-          exit 1
-
-      - name: Show container logs (on failure)
-        if: failure()
-        run: |
-          echo "=== Docker Compose Logs ==="
-          docker compose logs || echo "Could not fetch logs"
-          echo ""
-          echo "=== Container Status ==="
-          docker compose ps || echo "Could not fetch container status"
-
-      - name: Cleanup
-        if: always()
-        run: |
-          # Vérifier si docker-compose.yml existe avant de nettoyer
-          if [ -f "docker-compose.yml" ]; then
-            docker compose down -v || true
-          fi
-          docker system prune -af || true
