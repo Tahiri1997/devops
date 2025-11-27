@@ -30,16 +30,37 @@ jobs:
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
       
-      # AJOUT: Installation de Docker Compose
       - name: Install Docker Compose
         run: |
           sudo apt-get update
           sudo apt-get install -y docker-compose-plugin
-          # Vérifier l'installation
           docker compose version
+
+      # Vérifier que le fichier docker-compose.yml existe
+      - name: Check docker-compose file
+        run: |
+          if [ -f "docker-compose.yml" ]; then
+            echo "✅ docker-compose.yml found"
+            cat docker-compose.yml
+          elif [ -f "Docker-compose.yml" ]; then
+            echo "✅ Docker-compose.yml found (renaming to docker-compose.yml)"
+            mv Docker-compose.yml docker-compose.yml
+          else
+            echo "❌ No docker-compose.yml file found!"
+            ls -la
+            exit 1
+          fi
     
       - name: Create .env file
-        run: cp .env.example .env
+        run: |
+          if [ -f ".env.example" ]; then
+            cp .env.example .env
+            echo "✅ .env file created"
+          else
+            echo "❌ .env.example not found!"
+            ls -la
+            exit 1
+          fi
 
       - name: Start Docker containers
         run: |
@@ -56,7 +77,16 @@ jobs:
           COUNTER=0
           MAX_TRIES=30
           
-          until [ $(docker inspect -f '{{.State.Health.Status}}' contacts_db 2>/dev/null) == "healthy" ] || [ $COUNTER -eq $MAX_TRIES ]; do
+          # Vérifier si le conteneur existe
+          if ! docker ps -a --format '{{.Names}}' | grep -q 'contacts_db'; then
+            echo "❌ Database container 'contacts_db' not found"
+            echo "Available containers:"
+            docker ps -a --format '{{.Names}}'
+            exit 1
+          fi
+          
+          # Attendre que la BDD soit healthy
+          until [ "$(docker inspect -f '{{.State.Health.Status}}' contacts_db 2>/dev/null)" == "healthy" ] || [ $COUNTER -eq $MAX_TRIES ]; do
             echo "Waiting for database... ($COUNTER/$MAX_TRIES)"
             sleep 2
             COUNTER=$((COUNTER+1))
@@ -72,20 +102,24 @@ jobs:
 
       - name: Check frontend container
         run: |
-          if docker ps | grep -q 'contacts_frontend'; then
+          if docker ps --format '{{.Names}}' | grep -q 'contacts_frontend'; then
             echo "✅ Frontend container is running"
           else
             echo "❌ Frontend container is not running"
+            echo "Available containers:"
+            docker ps --format '{{.Names}}'
             docker compose logs contacts_frontend
             exit 1
           fi
 
       - name: Check backend container
         run: |
-          if docker ps | grep -q 'contacts_backend'; then
+          if docker ps --format '{{.Names}}' | grep -q 'contacts_backend'; then
             echo "✅ Backend container is running"
           else
             echo "❌ Backend container is not running"
+            echo "Available containers:"
+            docker ps --format '{{.Names}}'
             docker compose logs contacts_backend
             exit 1
           fi
@@ -97,7 +131,7 @@ jobs:
           MAX_TRIES=10
           
           until [ $COUNTER -eq $MAX_TRIES ]; do
-            RESPONSE_CODE=$(curl -o /dev/null -s -w "%{http_code}" http://localhost:8080/api/contacts.php || echo "000")
+            RESPONSE_CODE=$(curl -o /dev/null -s -w "%{http_code}" http://localhost:8080/api/contacts.php 2>/dev/null || echo "000")
             
             if [ "$RESPONSE_CODE" = "200" ]; then
               echo "✅ API is responding correctly (HTTP $RESPONSE_CODE)"
@@ -120,7 +154,7 @@ jobs:
           MAX_TRIES=10
           
           until [ $COUNTER -eq $MAX_TRIES ]; do
-            RESPONSE_CODE=$(curl -o /dev/null -s -w "%{http_code}" http://localhost:3000 || echo "000")
+            RESPONSE_CODE=$(curl -o /dev/null -s -w "%{http_code}" http://localhost:3000 2>/dev/null || echo "000")
             
             if [ "$RESPONSE_CODE" = "200" ]; then
               echo "✅ Frontend is responding correctly (HTTP $RESPONSE_CODE)"
@@ -140,13 +174,16 @@ jobs:
         if: failure()
         run: |
           echo "=== Docker Compose Logs ==="
-          docker compose logs
+          docker compose logs || echo "Could not fetch logs"
           echo ""
           echo "=== Container Status ==="
-          docker compose ps
+          docker compose ps || echo "Could not fetch container status"
 
       - name: Cleanup
         if: always()
         run: |
-          docker compose down -v
-          docker system prune -af
+          # Vérifier si docker-compose.yml existe avant de nettoyer
+          if [ -f "docker-compose.yml" ]; then
+            docker compose down -v || true
+          fi
+          docker system prune -af || true
