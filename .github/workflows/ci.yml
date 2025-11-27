@@ -31,12 +31,18 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Verify docker-compose file exists
+      - name: Detect compose file
+        id: compose
         run: |
-          if [ -f "docker-compose.yml" ]; then
-            echo "✓ docker-compose.yml found"
+          if [ -f "Docker-compose.yml" ]; then
+            echo "file=Docker-compose.yml" >> $GITHUB_OUTPUT
+            echo "✓ Found Docker-compose.yml"
+          elif [ -f "docker-compose.yml" ]; then
+            echo "file=docker-compose.yml" >> $GITHUB_OUTPUT
+            echo "✓ Found docker-compose.yml"
           elif [ -f "compose.yml" ]; then
-            echo "✓ compose.yml found"
+            echo "file=compose.yml" >> $GITHUB_OUTPUT
+            echo "✓ Found compose.yml"
           else
             echo "❌ No compose file found"
             ls -la
@@ -55,14 +61,14 @@ jobs:
 
       - name: Start Docker containers
         run: |
-          docker compose up --build -d
+          docker compose -f ${{ steps.compose.outputs.file }} up --build -d
           sleep 10
 
       - name: Check database health
         run: |
           if [ $(docker inspect -f '{{.State.Health.Status}}' contacts_db) != "healthy" ]; then
             echo "Database container is not healthy"
-            docker compose logs db
+            docker compose -f ${{ steps.compose.outputs.file }} logs db
             exit 1
           fi
 
@@ -77,7 +83,7 @@ jobs:
           RESPONSE_CODE=$(curl -o /dev/null -s -w "%{http_code}\n" http://localhost:8080/api/contacts.php)
           if [ "$RESPONSE_CODE" -ne 200 ]; then
             echo "API error: $RESPONSE_CODE"
-            docker compose logs backend
+            docker compose -f ${{ steps.compose.outputs.file }} logs backend
             exit 1
           fi
 
@@ -86,10 +92,15 @@ jobs:
           RESPONSE_CODE=$(curl -o /dev/null -s -w "%{http_code}\n" http://localhost:3000)
           if [ "$RESPONSE_CODE" -ne 200 ]; then
             echo "Frontend error: $RESPONSE_CODE"
-            docker compose logs frontend
+            docker compose -f ${{ steps.compose.outputs.file }} logs frontend
             exit 1
           fi
 
       - name: Cleanup
         if: always()
-        run: docker compose down -v
+        run: |
+          if [ -f "${{ steps.compose.outputs.file }}" ]; then
+            docker compose -f ${{ steps.compose.outputs.file }} down -v
+          else
+            echo "No compose file found, skipping cleanup"
+          fi
