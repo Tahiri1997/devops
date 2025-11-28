@@ -41,17 +41,12 @@ jobs:
             echo "${ENV_FILE_BASE64}" | base64 -d > .env
 
             # Stop + remove running containers
-            echo "Stopping old containers..."
             docker compose down || true
-
-            # Remove old containers manually (if needed)
             docker rm -f contacts_frontend || true
             docker rm -f contacts_backend || true
             docker rm -f contacts_db || true
 
-            
             # Rebuild and start
-            echo "Rebuilding and starting services..."
             docker compose up -d --build
 
             docker ps
