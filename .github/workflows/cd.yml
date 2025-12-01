@@ -48,7 +48,7 @@ jobs:
 
 
             # Rebuild and start
-            docker compose up -d --build
+            docker compose -f Docker-compose.yml up -d --build
 
             docker ps
             echo "----- DEPLOYMENT COMPLETED -----"
