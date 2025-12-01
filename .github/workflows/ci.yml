@@ -87,6 +87,7 @@ jobs:
             exit 1
           fi
 
+          
       - name: Check frontend endpoint
         run: |
           RESPONSE_CODE=$(curl -o /dev/null -s -w "%{http_code}\n" http://localhost:3003)
