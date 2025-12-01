@@ -26,15 +26,15 @@ jobs:
 
             echo "----- DEPLOYMENT STARTED -----"
 
-            cd /opt
+            cd /opt/kap
             
             # Reset project folder
-            rm -rf kap || true
+            rm -rf projet || true
 
             # Clone latest code
-            git clone https://Tahiri1997:${GH_TOKEN}@github.com/Tahiri1997/devops.git kap
+            git clone https://Tahiri1997:${GH_TOKEN}@github.com/Tahiri1997/devops.git projet
 
-            cd kap
+            cd projet
             git checkout main
 
             # Restore .env
