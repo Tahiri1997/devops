@@ -80,7 +80,7 @@ jobs:
 
       - name: Check API endpoint
         run: |
-          RESPONSE_CODE=$(curl -o /dev/null -s -w "%{http_code}\n" http://localhost:8080/api/contacts.php)
+          RESPONSE_CODE=$(curl -o /dev/null -s -w "%{http_code}\n" http://localhost:8083/api/contacts.php)
           if [ "$RESPONSE_CODE" -ne 200 ]; then
             echo "API error: $RESPONSE_CODE"
             docker compose -f ${{ steps.compose.outputs.file }} logs backend
@@ -89,7 +89,7 @@ jobs:
 
       - name: Check frontend endpoint
         run: |
-          RESPONSE_CODE=$(curl -o /dev/null -s -w "%{http_code}\n" http://localhost:3000)
+          RESPONSE_CODE=$(curl -o /dev/null -s -w "%{http_code}\n" http://localhost:3003)
           if [ "$RESPONSE_CODE" -ne 200 ]; then
             echo "Frontend error: $RESPONSE_CODE"
             docker compose -f ${{ steps.compose.outputs.file }} logs frontend
