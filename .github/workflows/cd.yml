@@ -38,7 +38,7 @@ jobs:
             git checkout main
 
             # Restore .env
-            echo "${ENV_FILE_BASE64}" | base64 -d > .env
+            echo "$ENV_FILE_BASE64" | base64 -d > .env
 
             # Stop + remove running containers
             docker compose down || true
