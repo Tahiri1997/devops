@@ -22,7 +22,7 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           script: |
             GH_TOKEN=${{ github.token }}
-            ENV_FILE_BASE64=${{ secrets.ENV_FILE_BASE64 }}
+            ENV_FILE_BASE64="${{ secrets.ENV_FILE_BASE64 }}"
 
             echo "----- DEPLOYMENT STARTED -----"
 
@@ -46,7 +46,7 @@ jobs:
             docker rm -f contacts_backend || true
             docker rm -f contacts_db || true
 
-            
+
             # Rebuild and start
             docker compose up -d --build
 
